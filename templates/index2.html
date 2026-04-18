@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎯 CAPE YARA Scanner</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: white;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            background: rgba(255,255,255,0.1);
+            padding: 20px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .control-panel {
+            background: rgba(255,255,255,0.1);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .btn {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-right: 10px;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        
+        .btn:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .progress-container {
+            margin: 20px 0;
+            display: none;
+        }
+        
+        .progress-bar {
+            background: rgba(255,255,255,0.2);
+            border-radius: 10px;
+            padding: 3px;
+            margin-bottom: 10px;
+        }
+        
+        .progress-fill {
+            background: linear-gradient(45deg, #4ecdc4, #44a08d);
+            height: 20px;
+            border-radius: 8px;
+            width: 0%;
+            transition: width 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .progress-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+            animation: shimmer 2s infinite;
+        }
+        
+        @keyframes shimmer {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+        
+        .status-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+        
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .results-container {
+            background: rgba(255,255,255,0.1);
+            border-radius: 15px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        
+        .threat-item {
+            background: rgba(255,107,107,0.2);
+            border-left: 4px solid #ff6b6b;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 0 10px 10px 0;
+        }
+        
+        .threat-header {
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #ffeb3b;
+        }
+        
+        .file-info {
+            margin-bottom: 10px;
+            opacity: 0.9;
+        }
+        
+        .matched-items {
+            background: rgba(0,0,0,0.2);
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+        
+        .safe-message {
+            text-align: center;
+            padding: 40px;
+            font-size: 1.3em;
+            color: #4ecdc4;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .rules-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .rule-card {
+            background: rgba(255,255,255,0.1);
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 0.9em;
+        }
+        
+        .rule-name {
+            font-weight: bold;
+            color: #ffeb3b;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 CAPE YARA Scanner</h1>
+            <p>JSON 파일 분석 및 위협 탐지 시스템</p>
+        </div>
+        
+        <div class="control-panel">
+            <button id="scanBtn" class="btn" onclick="startScan()">
+                🚀 스캔 시작
+            </button>
+            <button id="rulesBtn" class="btn" onclick="showRules()">
+                📋 룰 정보
+            </button>
+            
+            <div class="progress-container" id="progressContainer">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div id="progressText">준비 중...</div>
+            </div>
+        </div>
+        
+        <div class="status-info">
+            <div class="stat-card">
+                <div class="stat-value" id="totalFiles">-</div>
+                <div>총 파일 수</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="scannedFiles">-</div>
+                <div>스캔 완료</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="threatsFound">-</div>
+                <div>위협 탐지</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="totalRules">-</div>
+                <div>활성 룰</div>
+            </div>
+        </div>
+        
+        <div class="results-container" id="resultsContainer">
+            <div class="safe-message">
+                스캔을 시작하려면 위의 '스캔 시작' 버튼을 클릭하세요.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let scanInterval;
+        
+        // 룰 정보 로드
+        loadRulesInfo();
+        
+        function loadRulesInfo() {
+            fetch('/rules_info')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('totalRules').textContent = data.total_rules;
+                });
+        }
+        
+        function startScan() {
+            const scanBtn = document.getElementById('scanBtn');
+            const progressContainer = document.getElementById('progressContainer');
+            
+            scanBtn.disabled = true;
+            scanBtn.innerHTML = '<span class="loading"></span> 스캔 중...';
+            progressContainer.style.display = 'block';
+            
+            // 스캔 시작 요청
+            fetch('/start_scan', {method: 'POST'})
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'scan_started') {
+                        // 진행률 업데이트 시작
+                        scanInterval = setInterval(updateProgress, 500);
+                    }
+                });
+        }
+        
+        function updateProgress() {
+            fetch('/scan_progress')
+                .then(response => response.json())
+                .then(data => {
+                    const progressFill = document.getElementById('progressFill');
+                    const progressText = document.getElementById('progressText');
+                    const scannedFiles = document.getElementById('scannedFiles');
+                    const totalFiles = document.getElementById('totalFiles');
+                    
+                    if (data.total > 0) {
+                        const percentage = (data.current / data.total) * 100;
+                        progressFill.style.width = percentage + '%';
+                        progressText.textContent = `${data.current}/${data.total} - ${data.current_file}`;
+                        
+                        scannedFiles.textContent = data.current;
+                        totalFiles.textContent = data.total;
+                    }
+                    
+                    if (data.status === 'completed') {
+                        clearInterval(scanInterval);
+                        loadResults();
+                        
+                        const scanBtn = document.getElementById('scanBtn');
+                        scanBtn.disabled = false;
+                        scanBtn.innerHTML = '🚀 스캔 시작';
+                        
+                        progressText.textContent = '스캔 완료!';
+                    }
+                });
+        }
+        
+        function loadResults() {
+            fetch('/scan_results')
+                .then(response => response.json())
+                .then(data => {
+                    const resultsContainer = document.getElementById('resultsContainer');
+                    const threatsFound = document.getElementById('threatsFound');
+                    
+                    threatsFound.textContent = data.total_matches;
+                    
+                    if (data.total_matches === 0) {
+                        resultsContainer.innerHTML = `
+                            <div class="safe-message">
+                                ✅ 안전합니다!<br>
+                                위협이 탐지되지 않았습니다.
+                            </div>
+                        `;
+                    } else {
+                        let html = `<h3>🚨 ${data.total_matches}개 위협 탐지됨</h3>`;
+                        
+                        for (const [ruleName, matches] of Object.entries(data.rule_groups)) {
+                            html += `
+                                <div class="threat-item">
+                                    <div class="threat-header">🎯 룰: ${ruleName}</div>
+                            `;
+                            
+                            matches.forEach((match, index) => {
+                                html += `
+                                    <div style="margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.2);">
+                                        <div class="file-info">
+                                            📁 파일: <strong>${match.json_file}</strong><br>
+                                            🔍 타입: ${match.file_type}<br>
+                                            🔐 해시: ${match.file_hash.substring(0, 32)}...<br>
+                                            🕒 시간: ${match.timestamp}
+                                        </div>
+                                        <div class="matched-items">
+                                            <strong>매치된 항목들:</strong><br>
+                                            ${match.matched_items.map(item => `• ${item}`).join('<br>')}
+                                        </div>
+                                    </div>
+                                `;
+                            });
+                            
+                            html += `</div>`;
+                        }
+                        
+                        resultsContainer.innerHTML = html;
+                    }
+                });
+        }
+        
+        function showRules() {
+            fetch('/rules_info')
+                .then(response => response.json())
+                .then(data => {
+                    const resultsContainer = document.getElementById('resultsContainer');
+                    
+                    let html = `<h3>📋 활성화된 YARA 룰들 (${data.total_rules}개)</h3>`;
+                    html += '<div class="rules-info">';
+                    
+                    data.rules.forEach(rule => {
+                        html += `
+                            <div class="rule-card">
+                                <div class="rule-name">${rule.name}</div>
+                                <div>문자열: ${rule.strings_count}개</div>
+                                <div>조건: ${rule.condition}</div>
+                            </div>
+                        `;
+                    });
+                    
+                    html += '</div>';
+                    resultsContainer.innerHTML = html;
+                });
+        }
+    </script>
+</body>
+</html>
